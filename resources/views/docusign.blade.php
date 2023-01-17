@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <title>Laravel Docusign Integration Example - ItSlutionStuff.com</title>
+    <title>Laravel Docusign Integration </title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
@@ -23,15 +23,15 @@
 
         <div class="card">
             <div class="card-header">
-                <h5 class="card-title">Laravel Docusign Integration Example - ItSlutionStuff.com</h5>
+                <h5 class="card-title">Laravel Docusign Integration</h5>
             </div>
             <div class="card-body">
-                <h5 class="card-title">Docusign Tutorial</h5>
+                <h5 class="card-title">Docusign Connect</h5>
 
                 <p class="card-text">Click the button below to connect your application with Docusign</p>
 
                 @if ($message = Session::get('success'))
-                    <a href="{{ route('docusign.sign') }}" class="btn btn-primary">Click to Sign Document</a>
+                    <a href="{{ route('docusign.template') }}" class="btn btn-primary">Click to Sign Template</a>
                 @else
                     <a href="{{ route('connect.docusign') }}" class="btn btn-primary">Connect Docusign</a>
                 @endif

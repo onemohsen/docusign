@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RefreshTokenDocusignJob;
+use App\Models\Option;
+use App\Services\Actions\Api\EnvelopApi;
+use App\Services\Actions\Template\GetTemplateArgs;
+use App\Services\Actions\Template\SignTemplate;
 use Illuminate\Http\Request;
-use DocuSign\eSign\Configuration;
-use DocuSign\eSign\Api\EnvelopesApi;
-use DocuSign\eSign\Client\ApiClient;
 use Illuminate\Support\Facades\Http;
 use Exception;
-use Session;
 
 class DocusignController extends Controller
 {
@@ -24,6 +25,11 @@ class DocusignController extends Controller
         return view('docusign');
     }
 
+    public function template()
+    {
+        return view('template');
+    }
+
     /**
      * Connect your application to docusign
      *
@@ -35,7 +41,7 @@ class DocusignController extends Controller
             $params = [
                 'response_type' => 'code',
                 'scope' => 'signature',
-                'client_id' => env('DOCUSIGN_CLIENT_ID'),
+                'client_id' => config('docusign.client_id'),
                 'state' => 'a39fh23hnf23',
                 'redirect_uri' => route('docusign.callback'),
             ];
@@ -58,20 +64,17 @@ class DocusignController extends Controller
      */
     public function callback(Request $request)
     {
-        $response = Http::withBasicAuth(env('DOCUSIGN_CLIENT_ID'), env('DOCUSIGN_CLIENT_SECRET'))
+        $response = Http::withBasicAuth(config('docusign.client_id'), config('docusign.client_secret'))
             ->post('https://account-d.docusign.com/oauth/token', [
                 'grant_type' => 'authorization_code',
                 'code' => $request->code,
             ]);
 
-        // dd(env('DOCUSIGN_CLIENT_ID'), env('DOCUSIGN_CLIENT_SECRET'), $response, $request->all());
-        dd($response, $response->getBody()->getContents());
-
         $result = $response->json();
 
-        dd($result);
+        Option::updateOrCreate(['key' => 'docusign_auth'], ['key' => 'docusign_auth', 'value' => $result]);
 
-        $request->session()->put('docusign_auth_code', $result['access_token']);
+        RefreshTokenDocusignJob::dispatch()->delay(now()->addSeconds($result['expires_in'] - (60 * 30)));
 
         return redirect()->route('docusign')->with('success', 'Docusign Successfully Connected');
     }
@@ -84,14 +87,14 @@ class DocusignController extends Controller
     public function signDocument()
     {
         try {
-            $this->args = $this->getTemplateArgs();
+            $this->args = GetTemplateArgs::handle($this->signer_client_id);
             $args = $this->args;
 
             $envelope_args = $args["envelope_args"];
 
             /* Create the envelope request object */
             $envelope_definition = $this->makeEnvelopeFileObject($args["envelope_args"]);
-            $envelope_api = $this->getEnvelopeApi();
+            $envelope_api = EnvelopApi::create();
 
             $api_client = new \DocuSign\eSign\client\ApiClient($this->config);
             $envelope_api = new \DocuSign\eSign\Api\EnvelopesApi($api_client);
@@ -143,11 +146,11 @@ class DocusignController extends Controller
 
         /* Create the signer recipient model */
         $signer = new \DocuSign\eSign\Model\Signer([
-            'email' => 'savani@gmail.com',
-            'name' => 'savani',
+            'email' => 'onemohsen@gmail.com',
+            'name' => 'onemohsen',
             'recipient_id' => '1',
             'routing_order' => '1',
-            'client_user_id' => $args['signer_client_id']
+            // 'client_user_id' => $args['signer_client_id']
         ]);
 
         /* Create a signHere tab (field on the document) */
@@ -169,7 +172,7 @@ class DocusignController extends Controller
         $signer->settabs(new \DocuSign\eSign\Model\Tabs(['sign_here_tabs' => [$signHere, $signHere2]]));
 
         $envelopeDefinition = new \DocuSign\eSign\Model\EnvelopeDefinition([
-            'email_subject' => "Please sign this document sent from the ItSlutionStuff.com",
+            'email_subject' => "Please sign this document sent from the Parspn",
             'documents' => [$document],
             'recipients' => new \DocuSign\eSign\Model\Recipients(['signers' => [$signer]]),
             'status' => "sent",
@@ -178,38 +181,10 @@ class DocusignController extends Controller
         return $envelopeDefinition;
     }
 
-    /**
-     * Write code on Method
-     *
-     * @return response()
-     */
-    public function getEnvelopeApi(): EnvelopesApi
+    public function signTemplate(Request $request)
     {
-        $this->config = new Configuration();
-        $this->config->setHost($this->args['base_path']);
-        $this->config->addDefaultHeader('Authorization', 'Bearer ' . $this->args['ds_access_token']);
-        $this->apiClient = new ApiClient($this->config);
+        $result = SignTemplate::handle($request);
 
-        return new EnvelopesApi($this->apiClient);
-    }
-
-    /**
-     * Write code on Method
-     *
-     * @return response()
-     */
-    private function getTemplateArgs()
-    {
-        $args = [
-            'account_id' => env('DOCUSIGN_ACCOUNT_ID'),
-            'base_path' => env('DOCUSIGN_BASE_URL'),
-            'ds_access_token' => Session::get('docusign_auth_code'),
-            'envelope_args' => [
-                'signer_client_id' => $this->signer_client_id,
-                'ds_return_url' => route('docusign')
-            ]
-        ];
-
-        return $args;
+        return $result;
     }
 }

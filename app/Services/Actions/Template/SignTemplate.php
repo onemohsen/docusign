@@ -25,7 +25,7 @@ class SignTemplate
         if (!$template) throw new Error("template not found");
 
         $envelopeDefinition = [
-            'template_id' => $template['templateId'],
+            'template_id' => $template['template_id'],
             'signer_email' => $request->email,
             'signer_name' => $request->name,
             'cc_email' => "",

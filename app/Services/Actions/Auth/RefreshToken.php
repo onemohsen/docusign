@@ -39,7 +39,7 @@ class RefreshToken
             ];
 
             Option::updateOrCreate(['key' => 'docusign_auth'], ['key' => 'docusign_auth', 'value' => $data]);
-            RefreshTokenDocusignJob::dispatch()->delay(now()->addSeconds($result['expires_in'] - (60 * 30)));
+            dispatch(new RefreshTokenDocusignJob())->delay(now()->addSeconds($result['expires_in'] - (60 * 30)));
         } catch (\Throwable $th) {
             //throw $th;
         }

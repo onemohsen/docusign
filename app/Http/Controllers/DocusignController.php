@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Jobs\RefreshTokenDocusignJob;
 use App\Models\Option;
 use App\Services\Actions\Api\EnvelopApi;
+use App\Services\Actions\Job\DeleteJob;
 use App\Services\Actions\Template\GetTemplateArgs;
 use App\Services\Actions\Template\SignTemplate;
+use Error;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Exception;
+use Illuminate\Support\Facades\DB;
 
 class DocusignController extends Controller
 {
@@ -72,11 +75,17 @@ class DocusignController extends Controller
 
         $result = $response->json();
 
-        Option::updateOrCreate(['key' => 'docusign_auth'], ['key' => 'docusign_auth', 'value' => $result]);
-
-        RefreshTokenDocusignJob::dispatch()->delay(now()->addSeconds($result['expires_in'] - (60 * 30)));
-
-        return redirect()->route('docusign')->with('success', 'Docusign Successfully Connected');
+        DB::beginTransaction();
+        try {
+            Option::updateOrCreate(['key' => 'docusign_auth'], ['key' => 'docusign_auth', 'value' => $result]);
+            DeleteJob::handle();
+            RefreshTokenDocusignJob::dispatch()->delay(now()->addSeconds($result['expires_in'] - (60 * 30)));
+            DB::commit();
+            return redirect()->route('docusign')->with('success', 'Docusign Successfully Connected');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            throw new Error('callback error');
+        }
     }
 
     /**
